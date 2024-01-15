@@ -29,6 +29,19 @@ type Credentials struct {
 	Password string `json:"Password"`
 }
 
+var users = []User{
+	{
+		Email:    "beni@example.com",
+		Password: "rahasia",
+		Role:     "admin",
+	},
+	{
+		Email:    "sasuke@example.com",
+		Password: "rahasia",
+		Role:     "user",
+	},
+}
+
 func checkUser(email string, password string) (User, error) {
 	for _, user := range users {
 		if user.Email == email && user.Password == password {
@@ -77,7 +90,7 @@ func loginHandler(c *gin.Context) {
 
 func authMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authorHeader := c.GetHeader("Authorizaation")
+		authorHeader := c.GetHeader("Authorization")
 		if authorHeader == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "Unauthorized",
@@ -89,12 +102,14 @@ func authMiddleware() gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "Invalid Authorizaation Header",
 			})
+			return
 		}
 
 		if bearerToken[0] != "Bearer" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "Invalid Authorizaation Header",
 			})
+			return
 		}
 
 		getClaim := &Claims{}
@@ -105,12 +120,14 @@ func authMiddleware() gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "Invalid token",
 			})
+			return
 		}
 
 		if c.FullPath() == "/admin" && getClaim.Role != "admin" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "This route is only for admin",
 			})
+			return
 		}
 		c.Next()
 	}
@@ -126,19 +143,6 @@ func adminHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "welcome admin",
 	})
-}
-
-var users = []User{
-	{
-		Email:    "beni@example.com",
-		Password: "rahasia",
-		Role:     "admin",
-	},
-	{
-		Email:    "sasuke@example.com",
-		Password: "rahasia",
-		Role:     "user",
-	},
 }
 
 func main() {
