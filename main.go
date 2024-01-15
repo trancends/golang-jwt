@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -76,7 +77,55 @@ func loginHandler(c *gin.Context) {
 
 func authMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		authorHeader := c.GetHeader("Authorizaation")
+		if authorHeader == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "Unauthorized",
+			})
+			return
+		}
+		bearerToken := strings.Split(authorHeader, " ")
+		if len(bearerToken) != 2 {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "Invalid Authorizaation Header",
+			})
+		}
+
+		if bearerToken[0] != "Bearer" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "Invalid Authorizaation Header",
+			})
+		}
+
+		getClaim := &Claims{}
+		getToken, err := jwt.ParseWithClaims(bearerToken[1], getClaim, func(t *jwt.Token) (interface{}, error) {
+			return jwtKey, nil
+		})
+		if err != nil || !getToken.Valid || getClaim.ExpiresAt.Before(time.Now()) {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "Invalid token",
+			})
+		}
+
+		if c.FullPath() == "/admin" && getClaim.Role != "admin" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "This route is only for admin",
+			})
+		}
+		c.Next()
 	}
+}
+
+func userHandler(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"message": "welcome user",
+	})
+}
+
+func adminHandler(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"message": "welcome admin",
+	})
 }
 
 var users = []User{
@@ -95,26 +144,12 @@ var users = []User{
 func main() {
 	router := gin.Default()
 	router.POST("/login", loginHandler)
-
 	router.Use(authMiddleware())
+	router.GET("/admin", adminHandler)
+	router.GET("/user", userHandler)
 	router.Run(":8080")
 	// login
 	// if valid generate new JWT
 	// tokenString = `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYWRtaW4iLCJlbWFpbCI6ImJlbmlAZXhhbXBsZS5jb20iLCJpc3MiOiJFZ25pZ21hQ2FtcCIsImV4cCI6MTcwNTMwMjAyOH0.6fHJZJDEMuFAkYoGBlwzPOxhOBMoFRxxy0aXfH6F8JM`
 	// GET JWT
-	// getClaim := &Claims{}
-	// getToken, err := jwt.ParseWithClaims(tokenString, getClaim, func(t *jwt.Token) (interface{}, error) {
-	// 	return jwtKey, nil
-	// })
-	// if err != nil {
-	// 	fmt.Println(err)
-	// } else if claims, ok := getToken.Claims.(*Claims); ok {
-	// 	fmt.Println(claims.Role, claims.Email, claims.ExpiresAt, claims.Issuer)
-	// } else {
-	// 	log.Fatal("unknown claims type, cannot proceed")
-	// }
-	// if !getToken.Valid {
-	// 	fmt.Println("invalid token")
-	// }
-	// Validate JWT
 }
