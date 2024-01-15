@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -83,37 +82,49 @@ func loginHandler(c *gin.Context) {
 		fmt.Println(err)
 		return
 	}
+	cookieToken, err := c.Cookie("token")
+	if err != nil {
+		cookieToken = tokenString
+		c.SetCookie("token", cookieToken, 3600, "/", "localhost", false, true)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"token": tokenString,
+		"message": "login success",
 	})
 }
 
 func authMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authorHeader := c.GetHeader("Authorization")
-		if authorHeader == "" {
+		// authorHeader := c.GetHeader("Authorization")
+		// if authorHeader == "" {
+		// 	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+		// 		"error": "Unauthorized",
+		// 	})
+		// 	return
+		// }
+		// bearerToken := strings.Split(authorHeader, " ")
+		// if len(bearerToken) != 2 {
+		// 	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+		// 		"error": "Invalid Authorizaation Header",
+		// 	})
+		// 	return
+		// }
+		//
+		// if bearerToken[0] != "Bearer" {
+		// 	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+		// 		"error": "Invalid Authorizaation Header",
+		// 	})
+		// 	return
+		// }
+		cookieToken, err := c.Cookie("token")
+		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "Unauthorized",
 			})
-			return
-		}
-		bearerToken := strings.Split(authorHeader, " ")
-		if len(bearerToken) != 2 {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "Invalid Authorizaation Header",
-			})
-			return
-		}
-
-		if bearerToken[0] != "Bearer" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "Invalid Authorizaation Header",
-			})
-			return
 		}
 
 		getClaim := &Claims{}
-		getToken, err := jwt.ParseWithClaims(bearerToken[1], getClaim, func(t *jwt.Token) (interface{}, error) {
+		getToken, err := jwt.ParseWithClaims(cookieToken, getClaim, func(t *jwt.Token) (interface{}, error) {
 			return jwtKey, nil
 		})
 		if err != nil || !getToken.Valid || getClaim.ExpiresAt.Before(time.Now()) {
